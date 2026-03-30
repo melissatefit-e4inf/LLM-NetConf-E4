@@ -1,5 +1,5 @@
 from typing import List, Tuple
-from pydantic import BaseModel, Field
+from pydantic.v1 import BaseModel, Field
 from langchain_core.output_parsers import JsonOutputParser
 
 # User input

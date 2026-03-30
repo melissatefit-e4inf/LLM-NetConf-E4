@@ -104,14 +104,23 @@ third_step_prompt = PromptTemplate.from_template(THIRD_STEP_TEMPLATE, partial_va
 forth_step_prompt = PromptTemplate.from_template(FOURTH_STEP_TEMPLATE, partial_variables={"format_instructions": output_parser.get_format_instructions(), "example_command": OUTPUT_EXAMPLE_COMMAND})
 
 # 3. Create Chain
-from langchain_community.chat_models import ChatOpenAI
+# On remplace ChatOpenAI par ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema.output_parser import StrOutputParser
+import os
 
-first_step_chain = first_step_prompt | ChatOpenAI(model="gpt-3.5-turbo-1106", temperature=0) | StrOutputParser()
-second_step_chain = second_step_prompt | ChatOpenAI(model="gpt-3.5-turbo-1106", temperature=0) | StrOutputParser()
-third_step_chain = third_step_prompt | ChatOpenAI(model="gpt-3.5-turbo-1106", temperature=0) | port_identification_parser
-fourth_step_chain = forth_step_prompt | ChatOpenAI(model="gpt-3.5-turbo-1106", temperature=0) | output_parser
+# Initialisation du modèle Gemini (Gratuit)
+llm = ChatGoogleGenerativeAI(
+    model="gemini-1.5-flash", 
+    google_api_key="TON_API_KEY_ICI", # Ou utilise os.getenv("GOOGLE_API_KEY")
+    temperature=0
+)
 
+# Mise à jour des chaînes avec Gemini
+first_step_chain = first_step_prompt | llm | StrOutputParser()
+second_step_chain = second_step_prompt | llm | StrOutputParser()
+third_step_chain = third_step_prompt | llm | port_identification_parser
+fourth_step_chain = forth_step_prompt | llm | output_parser
 
 ## 4. Create Invoke Function
 
