@@ -1,0 +1,263 @@
+{
+  "node_info": [
+    {
+      "node_id": "82e2a288-9490-44dd-b6a3-5d5ba264f772",
+      "name": "R1",
+      "node_type": "dynamips",
+      "console": 5000,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "FastEthernet0/0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "FastEthernet1/0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "75fe6e6e-fbcd-4324-959b-8675632f09b2",
+      "name": "Switch1",
+      "node_type": "ethernet_switch",
+      "console": 5001,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet1",
+          "port_number": 1,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet2",
+          "port_number": 2,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet3",
+          "port_number": 3,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet4",
+          "port_number": 4,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet5",
+          "port_number": 5,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet6",
+          "port_number": 6,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet7",
+          "port_number": 7,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "edae9ab1-2ddb-415d-a3a1-c3a943cef069",
+      "name": "PC1",
+      "node_type": "vpcs",
+      "console": 5002,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "d6564355-fced-42ed-9763-aaf57b119b83",
+      "name": "PC2",
+      "node_type": "vpcs",
+      "console": 5004,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "dd8b20c5-0b4d-457a-9e4c-5fe6dd7efd98",
+      "name": "Switch2",
+      "node_type": "ethernet_switch",
+      "console": 5006,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet1",
+          "port_number": 1,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet2",
+          "port_number": 2,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet3",
+          "port_number": 3,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet4",
+          "port_number": 4,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet5",
+          "port_number": 5,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet6",
+          "port_number": 6,
+          "link_type": "ethernet"
+        },
+        {
+          "name": "Ethernet7",
+          "port_number": 7,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "be8af06d-7a51-4da9-b22b-0b3cf051fd2f",
+      "name": "PC3",
+      "node_type": "vpcs",
+      "console": 5007,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        }
+      ]
+    },
+    {
+      "node_id": "0b4b5307-aabc-4bf4-964d-11718ad263e4",
+      "name": "PC4",
+      "node_type": "vpcs",
+      "console": 5009,
+      "console_host": "localhost",
+      "ports": [
+        {
+          "name": "Ethernet0",
+          "port_number": 0,
+          "link_type": "ethernet"
+        }
+      ]
+    }
+  ],
+  "link_info": [
+    {
+      "link_id": "42cba575-cd2a-4ce5-b157-72a185245b20",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "edae9ab1-2ddb-415d-a3a1-c3a943cef069",
+          "port_number": 0
+        },
+        {
+          "node_id": "75fe6e6e-fbcd-4324-959b-8675632f09b2",
+          "port_number": 0
+        }
+      ]
+    },
+    {
+      "link_id": "c195bc22-0136-46e8-81bc-575c8b36841a",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "d6564355-fced-42ed-9763-aaf57b119b83",
+          "port_number": 0
+        },
+        {
+          "node_id": "75fe6e6e-fbcd-4324-959b-8675632f09b2",
+          "port_number": 1
+        }
+      ]
+    },
+    {
+      "link_id": "81f325a5-cc6b-4dd9-a931-d36740d7c226",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "75fe6e6e-fbcd-4324-959b-8675632f09b2",
+          "port_number": 2
+        },
+        {
+          "node_id": "82e2a288-9490-44dd-b6a3-5d5ba264f772",
+          "port_number": 0
+        }
+      ]
+    },
+    {
+      "link_id": "38073203-27a8-42df-af18-ea6caef4be7f",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "be8af06d-7a51-4da9-b22b-0b3cf051fd2f",
+          "port_number": 0
+        },
+        {
+          "node_id": "dd8b20c5-0b4d-457a-9e4c-5fe6dd7efd98",
+          "port_number": 0
+        }
+      ]
+    },
+    {
+      "link_id": "6995f252-e372-4f3c-ae1d-3d698aed4f22",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "0b4b5307-aabc-4bf4-964d-11718ad263e4",
+          "port_number": 0
+        },
+        {
+          "node_id": "dd8b20c5-0b4d-457a-9e4c-5fe6dd7efd98",
+          "port_number": 1
+        }
+      ]
+    },
+    {
+      "link_id": "51b43a51-1720-45e4-8d27-3f300dffc415",
+      "link_type": "ethernet",
+      "nodes": [
+        {
+          "node_id": "dd8b20c5-0b4d-457a-9e4c-5fe6dd7efd98",
+          "port_number": 2
+        },
+        {
+          "node_id": "82e2a288-9490-44dd-b6a3-5d5ba264f772",
+          "port_number": 0
+        }
+      ]
+    }
+  ]
+}

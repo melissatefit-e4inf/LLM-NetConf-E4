@@ -1,0 +1,65 @@
+<div
+  *ngIf="isDraggingEnabled"
+  (document:mousemove)="dragWidget($event)"
+  (document:mouseup)="toggleDragging(false)"
+></div>
+
+<div
+  class="chatWrapper"
+  (mousedown)="toggleDragging(true)"
+  [ngStyle]="style"
+  [ngClass]="{ lightTheme: isLightThemeEnabled }"
+  mwlResizable
+  [validateResize]="validate"
+  [resizeEdges]="{ right: true, left: true, bottom: true, top: true }"
+  [enableGhostResize]="true"
+  (resizeStart)="toggleDragging(false)"
+  (resizeEnd)="onResizeEnd($event)"
+>
+  <div class="chatContainer">
+    <div class="chatHeader">
+      <div class="chatHeader__status"></div>
+      <h3 class="chatHeader__title">S-Witch Assistant</h3>
+      <span class="chatHeader__subtitle">LLM Network Config</span>
+    </div>
+
+    <section class="chatBody" [ngStyle]="bodyStyle">
+      <div *ngIf="messages.length === 0" class="chatWelcome">
+        <div class="chatWelcome__icon">🤖</div>
+        <p class="chatWelcome__text">Bonjour ! Décrivez votre configuration réseau.</p>
+        <p class="chatWelcome__example">"Configure all PCs to ping each other"</p>
+      </div>
+
+      <div *ngFor="let message of messages" class="chatMessage" [ngClass]="message.class">
+        <div class="chatMessage__avatar">
+          {{ message.class === 'chatBody__message_me' ? '👤' : '🤖' }}
+        </div>
+        <div class="chatMessage__bubble">
+          <pre class="chatMessage__text">{{ message.content }}</pre>
+        </div>
+      </div>
+
+      <div *ngIf="isLoading" class="chatLoading">
+        <div class="chatLoading__avatar">🤖</div>
+        <div class="chatLoading__dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="chatFooter">
+      <input
+        class="chatFooter__input"
+        (keypress)="onKeyPress($event)"
+        [(ngModel)]="inputValue"
+        placeholder="Décrivez votre configuration..."
+        [disabled]="isLoading"
+      />
+      <button
+        class="chatFooter__button"
+        (click)="onClick()"
+        [disabled]="isLoading || !inputValue"
+      >➤</button>
+    </footer>
+  </div>
+</div>
