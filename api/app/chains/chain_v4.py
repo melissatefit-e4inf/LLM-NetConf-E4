@@ -12,11 +12,11 @@
 from operator import itemgetter
 from typing import List, Tuple
 
-from langchain.llms.openai import OpenAI
-from langchain.prompts.prompt import PromptTemplate
-from langchain.schema import format_document
-from langchain.schema.output_parser import StrOutputParser
-from langchain.schema.runnable import RunnableLambda
+#from langchain.llms.openai import OpenAI
+from langchain_core.prompts import PromptTemplate
+#from langchain.schema import format_document
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.runnables import RunnableLambda
 
 from dotenv import load_dotenv; load_dotenv()
 
@@ -89,7 +89,16 @@ def _format_chat_history(chat_history: List[Tuple]) -> str:
         buffer = "None"
     return buffer
 
-from langchain_community.chat_models import ChatOpenAI
+from langchain_groq import ChatGroq
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
+groq_model = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    api_key=os.getenv("GROQ_API_KEY"),
+    temperature=0
+)
 
 chain = (
     {
@@ -97,12 +106,12 @@ chain = (
             "network_topology": itemgetter("topology"),
             "chat_history": itemgetter("chat_history") | RunnableLambda(_format_chat_history),
             "question": itemgetter("question"),
-        } | PROMPT_FOR_ALLOCATE_IP | ChatOpenAI(model="gpt-3.5-turbo", temperature=0) | network_topology_parser,
+        } | PROMPT_FOR_ALLOCATE_IP | groq_model | network_topology_parser,
         "chat_history": itemgetter("chat_history") | RunnableLambda(_format_chat_history),
         "question": itemgetter("question"),
     }
     | PROMPT_FOR_ANSWER 
-    | ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+    | groq_model
     | output_parser
 )
 first_chain = (
@@ -112,7 +121,7 @@ first_chain = (
         "question": itemgetter("question"),
     }
     | PROMPT_FOR_ALLOCATE_IP 
-    | ChatOpenAI(model="gpt-3.5-turbo", temperature=0) 
+    | groq_model 
     | network_topology_parser
 )
 
@@ -123,6 +132,6 @@ second_chain = (
         "question": itemgetter("question"),
     }
     | PROMPT_FOR_ANSWER 
-    | ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+    | groq_model
     | output_parser
 )
