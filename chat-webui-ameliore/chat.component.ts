@@ -178,7 +178,6 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   onClick() {
     if (this.inputValue && this.inputValue.trim() !== '' && !this.isLoading) {
-      // 1. Ajouter le message utilisateur
       this.messages.push({
         content: this.inputValue,
         class: 'chatBody__message_me',
@@ -186,16 +185,59 @@ export class ChatComponent implements OnInit, OnDestroy {
 
       const prompt = this.inputValue;
       this.inputValue = '';
-      this.isLoading = true; // Déclenche l'affichage 🤖 dans le HTML
+      this.isLoading = true;
 
-      // 2. Simulation de l'appel à l'API S-Witch (FastAPI) [cite: 24]
-      setTimeout(() => {
+      const topology = {
+        node_info: this.nodes.map(n => ({
+          node_id: n.node_id,
+          name: n.name,
+          node_type: n.node_type,
+          console: n.console,
+          console_host: n.console_host,
+          ports: n.ports || []
+        })),
+        link_info: this.links.map(l => ({
+          link_id: l.link_id,
+          link_type: 'ethernet',
+          nodes: l.nodes || []
+        }))
+      };
+
+      fetch('http://localhost:8000/v4/invoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: {
+            chat_history: [],
+            topology: JSON.stringify(topology),
+            question: prompt
+          },
+          config: {},
+          kwargs: {}
+        })
+      })
+      .then(res => res.json())
+      .then(data => {
+        const output = data.output || [];
+        let response = 'Commandes generees :\n';
+        output.forEach((item: any) => {
+          if (item.device && item.command) {
+            response += `\n[${item.device}]\n${item.command}\n`;
+          }
+        });
         this.messages.push({
-          content: `S-Witch analyse la topologie... \nRequête reçue: "${prompt}"\nGénération des commandes Cisco IOS en cours...`,
+          content: response,
           class: 'chatBody__message_other',
         });
         this.isLoading = false;
-      }, 2000);
+      })
+      .catch(err => {
+        this.messages.push({
+          content: 'Erreur: ' + err.message,
+          class: 'chatBody__message_other',
+        });
+        this.isLoading = false;
+      });
     }
   }
 }
