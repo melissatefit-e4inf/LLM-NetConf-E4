@@ -1,4 +1,5 @@
 jupyter
 .env
 
-api/db/faiss/*
+api/db/faiss/*gns3-topology/project-files/
+vpcs
