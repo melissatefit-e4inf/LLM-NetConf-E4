@@ -70,26 +70,14 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   revertPosition() {
-    let leftPosition = localStorage.getItem('chatLeftPosition');
-    let rightPosition = localStorage.getItem('chatRightPosition');
-    let topPosition = localStorage.getItem('chatTopPosition');
-    let widthOfWidget = localStorage.getItem('chatWidthOfWidget');
-    let heightOfWidget = localStorage.getItem('chatHeightOfWidget');
-
-    if (!topPosition) {
-      this.style = { bottom: '30px', right: '0px', width: '320px', height: '300px' };
-      this.bodyStyle = { height: '205px' };
-    } else {
-      this.style = {
-        position: 'fixed',
-        left: `${+leftPosition}px`,
-        right: `${+rightPosition}px`,
-        top: `${+topPosition}px`,
-        width: `${+widthOfWidget}px`,
-        height: `${+heightOfWidget}px`,
-      };
-      this.bodyStyle = { height: `${+heightOfWidget - 95}px` };
-    }
+    this.style = { 
+      position: 'fixed',
+      bottom: '20px', 
+      right: '20px', 
+      width: '450px', 
+      height: '650px' 
+    };
+    this.bodyStyle = { height: '510px' };
   }
 
   toggleDragging(value: boolean) {

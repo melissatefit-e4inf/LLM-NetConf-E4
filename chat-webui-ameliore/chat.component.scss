@@ -23,8 +23,8 @@ $border: #30363d;
   position: fixed;
   bottom: 0px;
   right: 0px;
-  width: 380px;
-  height: 520px;
+  width: 450px;
+height: 650px;
   background: $bg-dark;
   color: $text-primary;
   overflow: hidden;
@@ -104,8 +104,8 @@ $border: #30363d;
   background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
   border-bottom: 1px solid $border;
   flex-shrink: 0;
-  cursor: move;
-  user-select: none;
+   cursor: default;
+  user-select: text;
 
   &__status {
     width: 8px;
