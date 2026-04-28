@@ -3,3 +3,9 @@ jupyter
 
 api/db/faiss/*gns3-topology/project-files/
 vpcs
+gns3-topology/
+*.ghost
+*.image
+*.iomem
+*.nvram
+*.bootflash

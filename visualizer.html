@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>S-Witch Topology Visualizer</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background: #1e1e1e; color: white; display: flex; flex-direction: column; align-items: center; padding: 20px; }
+        h1 { color: #00d4aa; }
+        #canvas { background: white; padding: 20px; border-radius: 10px; margin-top: 20px; min-width: 600px; min-height: 200px; }
+        .controls { background: #333; padding: 20px; border-radius: 10px; width: 80%; display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; border-radius: 5px; border: none; font-size: 14px; }
+        button { padding: 10px 20px; cursor: pointer; background: #00d4aa; color: #1e1e1e; border: none; border-radius: 5px; font-weight: bold; font-size: 14px; }
+        #status { margin-top: 10px; padding: 10px; background: #333; border-radius: 5px; width: 80%; min-height: 40px; }
+    </style>
+</head>
+<body>
+    <h1>S-Witch Topology Visualizer</h1>
+    <div class="controls">
+        <input id="prompt" type="text" placeholder="Ex: Add PC6 connected to Switch1" onkeydown="if(event.key==='Enter') process()">
+        <button onclick="process()">Generer et Deployer</button>
+    </div>
+    <div id="status">En attente...</div>
+    <div id="canvas" class="mermaid">graph TD
+    Start[Decrivez votre topologie...]</div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+
+        async function process() {
+            const question = document.getElementById('prompt').value;
+            if (!question) return;
+            document.getElementById('status').innerHTML = 'Generation de la topologie...';
+
+            try {
+                const res = await fetch('http://localhost:8000/v6/invoke', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input: {question: question}})
+                });
+                const data = await res.json();
+                const topo = data.output;
+
+                if (!topo) {
+                    document.getElementById('status').innerHTML = 'Erreur: ' + (data.error || 'LLM failed');
+                    return;
+                }
+
+                document.getElementById('status').innerHTML = `Topologie generee: ${topo.node_info.length} noeuds, ${topo.link_info.length} liens. Deploiement dans GNS3...`;
+
+                let graph = "graph TD\n";
+                topo.node_info.forEach(n => {
+                    const icon = n.type === 'vpcs' ? 'fa:fa-desktop' : n.type === 'dynamips' ? 'fa:fa-server' : 'fa:fa-sitemap';
+                    graph += `  ${n.node_id}["${n.name}"]\n`;
+                });
+                topo.link_info.forEach(l => {
+                    graph += `  ${l.node1_id} --- ${l.node2_id}\n`;
+                });
+
+                const element = document.getElementById('canvas');
+                element.innerHTML = graph;
+                element.removeAttribute('data-processed');
+                mermaid.init(undefined, element);
+
+                const res2 = await fetch('http://localhost:8000/v7/invoke', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input: {topology: topo}})
+                });
+                const data2 = await res2.json();
+                const out = data2.output;
+
+                document.getElementById('status').innerHTML = `Deploye dans GNS3: ${out ? out.nodes_created : 0} noeuds, ${out ? out.links_created : 0} liens. Ouvre GNS3 pour voir !`;
+
+            } catch(e) {
+                document.getElementById('status').innerHTML = 'Erreur: ' + e.message;
+            }
+        }
+    </script>
+</body>
+</html>

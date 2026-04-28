@@ -357,8 +357,8 @@
                 "symbol": ":/symbols/ethernet_switch.svg",
                 "template_id": "1966b864-93e7-32d5-965f-001384eec461",
                 "width": 72,
-                "x": -112,
-                "y": -158,
+                "x": -132,
+                "y": -118,
                 "z": 1
             },
             {
@@ -524,8 +524,8 @@
                 "symbol": ":/symbols/vpcs_guest.svg",
                 "template_id": "19021f99-e36f-394d-b4a1-8aaa902ab9cc",
                 "width": 65,
-                "x": 171,
-                "y": 33,
+                "x": 170,
+                "y": 34,
                 "z": 1
             },
             {

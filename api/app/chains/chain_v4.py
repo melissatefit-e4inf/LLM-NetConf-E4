@@ -47,10 +47,11 @@ def _format_chat_history(chat_history: List[Tuple]) -> str:
         buffer = "None"
     return buffer
 
-from langchain_community.chat_models import ChatOllama
-
-groq_model = ChatOllama(
-    model="qwen2.5:7b",
+from langchain_groq import ChatGroq
+import os
+groq_model = ChatGroq(
+    model="llama-3.3-70b-versatile",
+    api_key=os.getenv("GROQ_API_KEY"),
     temperature=0
 )
 
