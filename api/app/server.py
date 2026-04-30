@@ -6,7 +6,7 @@ import uvicorn
 
 load_dotenv()
 
-app = FastAPI(title="S-Witch Network Engine", version="4.0.0")
+app = FastAPI(title="S-Witch Network Engine", version="4.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 GNS3_URL = os.getenv("GNS3_URL", "http://localhost:3080/v2")
@@ -21,13 +21,20 @@ Rules:
 4. Always write complete subnet masks: 255.255.255.0
 5. Output ONLY valid JSON array."""
 
-def get_gns3_nodes():
+def get_gns3_project():
     try:
         projs = requests.get(f"{GNS3_URL}/projects").json()
-        if not projs: return {}
+        if not projs: return None, None
         pid = projs[0]["project_id"]
+        return pid, projs[0]
+    except: return None, None
+
+def get_gns3_nodes():
+    try:
+        pid, _ = get_gns3_project()
+        if not pid: return {}
         nodes = requests.get(f"{GNS3_URL}/projects/{pid}/nodes").json()
-        return {n["name"]: {"console": n.get("console"), "id": n["node_id"]} for n in nodes}
+        return {n["name"]: {"console": n.get("console"), "id": n["node_id"], "type": n.get("node_type")} for n in nodes}
     except Exception as e:
         print(f"Erreur GNS3: {e}")
         return {}
@@ -35,14 +42,12 @@ def get_gns3_nodes():
 def normalize_cisco_command(cmd: str) -> str:
     cmd = cmd.strip()
     if not cmd: return ""
-    # Fix no shutdown tronque
     if re.match(r'^(n|no\s*s|no\s*shu|no\s*shut)$', cmd, re.I):
         return "no shutdown"
-    # Fix masque IP incomplet
     if "ip address" in cmd.lower():
         parts = cmd.split()
-        if len(parts) >= 4 and parts[3] == "255":
-            return f"{parts[0]} {parts[1]} {parts[2]} {parts[3]} 255.255.0"
+        if len(parts) >= 4 and parts[3] == "255" and len(parts) < 5:
+            return f"{parts[0]} {parts[1]} {parts[2]} 255.255.255.0"
         elif len(parts) == 3 and re.match(r'\d+\.\d+\.\d+\.\d+', parts[2]):
             return f"{cmd} 255.255.255.0"
     return cmd
@@ -53,18 +58,14 @@ def send_to_console(port, command_block: str):
         with socket.create_connection(("127.0.0.1", port), timeout=10) as s:
             s.settimeout(2)
             time.sleep(1)
-            # Sortie wizard Cisco
             for _ in range(3):
                 s.sendall(b"\r\nno\r\n")
                 time.sleep(0.5)
-            # Nettoyage buffer
             try:
                 while s.recv(4096): pass
             except socket.timeout: pass
-            # Mode enable
             s.sendall(b"\nenable\nterminal length 0\n")
             time.sleep(0.5)
-            # Envoi commandes
             lines = command_block.replace("\\n", "\n").split('\n')
             for line in lines:
                 clean = normalize_cisco_command(line)
@@ -78,6 +79,141 @@ def send_to_console(port, command_block: str):
     except Exception as e:
         print(f"Erreur Console {port}: {e}")
         return False
+
+def force_configure_r1(pid, node_id, port):
+    print(f"Force config R1 sur port {port}...")
+    commands = [
+        "conf t",
+        "no ip domain-lookup",
+        "interface FastEthernet0/0",
+        "ip address 192.168.1.254 255.255.255.0",
+        "no shutdown",
+        "exit",
+        "interface FastEthernet1/1",
+        "ip address 192.168.2.254 255.255.255.0",
+        "no shutdown",
+        "exit",
+        "end",
+        "write memory"
+    ]
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        print(f"Tentative {attempt}/{max_retries}...")
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=120) as s:
+                s.settimeout(3)
+                print("Attente du prompt Router>...")
+                buffer = ""
+                deadline = time.time() + 90
+                while time.time() < deadline:
+                    try:
+                        data = s.recv(4096).decode(errors="ignore")
+                        buffer += data
+                        if "yes/no" in buffer:
+                            s.sendall(b"no\r\n")
+                            buffer = ""
+                            time.sleep(2)
+                        if "Router>" in buffer or "Router#" in buffer:
+                            print("Prompt detecte !")
+                            break
+                    except socket.timeout:
+                        s.sendall(b"\r\n")
+                        time.sleep(1)
+
+                s.sendall(b"enable\r\n")
+                time.sleep(1)
+                for cmd in commands:
+                    print(f"  -> {cmd}")
+                    s.sendall((cmd + "\n").encode())
+                    delay = 1.2 if any(x in cmd for x in ["interface", "ip address"]) else 0.8
+                    time.sleep(delay)
+
+            # Verification
+            time.sleep(5)
+            with socket.create_connection(("127.0.0.1", port), timeout=10) as s:
+                s.settimeout(3)
+                s.sendall(b"\r\nshow ip interface brief\r\n")
+                time.sleep(2)
+                output = ""
+                try:
+                    output = s.recv(4096).decode(errors="ignore")
+                except: pass
+                print(f"Verification R1:\n{output}")
+                if "192.168.1.254" in output and "up" in output.lower():
+                    print("R1 stable et configure !")
+                    return True
+                else:
+                    print(f"Config absente, nouvelle tentative...")
+
+        except Exception as e:
+            print(f"Erreur tentative {attempt}: {e}")
+
+    print("Echec configuration R1 apres 3 tentatives")
+    return False
+
+def add_missing_links(pid, created_nodes, node_name_map):
+    """Ajoute automatiquement les liens manquants PC<->Switch"""
+    print("Ajout des liens manquants...")
+    
+    # Récupérer les liens existants
+    existing_links = requests.get(f"{GNS3_URL}/projects/{pid}/links").json()
+    connected_nodes = set()
+    for l in existing_links:
+        for n in l['nodes']:
+            connected_nodes.add(n['node_id'])
+    
+    # Trouver les switches et les PCs non connectés
+    switches = {name: data for name, data in node_name_map.items() if 'Switch' in name}
+    pcs = {name: data for name, data in node_name_map.items() if name.startswith('PC')}
+    
+    links_added = 0
+    switch_port_counters = {}
+    
+    # Initialiser les compteurs de ports (après les liens existants)
+    for l in existing_links:
+        for n in l['nodes']:
+            nid = n['node_id']
+            nname = next((name for name, d in node_name_map.items() if d['id'] == nid), None)
+            if nname and 'Switch' in nname:
+                current = switch_port_counters.get(nname, 0)
+                switch_port_counters[nname] = max(current, n['port_number'] + 1)
+    
+    # Connecter chaque PC à son switch
+    pc_switch_map = {
+        'PC1': 'Switch1', 'PC2': 'Switch1',
+        'PC3': 'Switch2', 'PC4': 'Switch2'
+    }
+    
+    for pc_name, sw_name in pc_switch_map.items():
+        if pc_name not in node_name_map or sw_name not in node_name_map:
+            continue
+        
+        pc_id = node_name_map[pc_name]['id']
+        sw_id = node_name_map[sw_name]['id']
+        
+        # Vérifier si déjà connecté
+        already_connected = any(
+            (n['node_id'] == pc_id)
+            for l in existing_links
+            for n in l['nodes']
+        )
+        
+        if not already_connected:
+            sw_port = switch_port_counters.get(sw_name, 1)
+            res = requests.post(f"{GNS3_URL}/projects/{pid}/links", json={
+                "nodes": [
+                    {"node_id": pc_id, "adapter_number": 0, "port_number": 0},
+                    {"node_id": sw_id, "adapter_number": 0, "port_number": sw_port}
+                ]
+            })
+            if res.status_code in [200, 201]:
+                links_added += 1
+                switch_port_counters[sw_name] = sw_port + 1
+                print(f"Lien ajoute: {pc_name} <-> {sw_name} (port {sw_port})")
+            else:
+                print(f"Echec lien {pc_name}<->{sw_name}: {res.text[:80]}")
+    
+    return links_added
 
 def call_llm(prompt, system=None):
     api_key = os.getenv("GROQ_API_KEY")
@@ -115,7 +251,7 @@ Output ONLY JSON array:
 [
   {{"device": "PC1", "command": "ip 192.168.1.1/24 192.168.1.254", "comment": "IP PC1"}},
   {{"device": "PC2", "command": "ip 192.168.1.2/24 192.168.1.254", "comment": "IP PC2"}},
-  {{"device": "R1", "command": "conf t\\ninterface FastEthernet0/0\\nip address 192.168.1.254 255.255.255.0\\nno shutdown\\ninterface FastEthernet1/0\\nip address 192.168.2.254 255.255.255.0\\nno shutdown\\nend", "comment": "Gateway R1"}}
+  {{"device": "R1", "command": "conf t\\ninterface FastEthernet0/0\\nip address 192.168.1.254 255.255.255.0\\nno shutdown\\ninterface FastEthernet1/1\\nip address 192.168.2.254 255.255.255.0\\nno shutdown\\nend", "comment": "Gateway R1"}}
 ]"""
     content = call_llm(prompt, system=SYSTEM_PROMPT)
     if not content: return []
@@ -132,7 +268,7 @@ Output ONLY JSON array:
 
 @app.get("/")
 def root():
-    return {"message": "S-Witch Network Engine v4.0", "version": "4.0.0"}
+    return {"message": "S-Witch Network Engine v4.1", "version": "4.1.0"}
 
 @app.get("/health")
 def health():
@@ -202,22 +338,34 @@ async def gen_topology(request: Request):
     question = data.get("input", {}).get("question", "")
     print(f"\n[v6] {question}")
     prompt = f"""Task: {question}
-Generate a GNS3 topology. Node types: vpcs, ethernet_switch, dynamips.
+Generate a complete GNS3 topology. Node types: vpcs, ethernet_switch, dynamips.
+IMPORTANT: Include ALL links between ALL devices.
+
 Output ONLY valid JSON:
 {{
   "node_info": [
-    {{"node_id": "auto-1", "type": "vpcs", "name": "PC1", "ports": [{{"port_number": 0}}]}},
-    {{"node_id": "auto-2", "type": "ethernet_switch", "name": "Switch1", "ports": [{{"port_number": 0}}, {{"port_number": 1}}]}}
+    {{"node_id": "auto-1", "type": "dynamips", "name": "R1", "ports": [{{"port_number": 0}}, {{"port_number": 1}}]}},
+    {{"node_id": "auto-2", "type": "ethernet_switch", "name": "Switch1", "ports": [{{"port_number": 0}}, {{"port_number": 1}}, {{"port_number": 2}}]}},
+    {{"node_id": "auto-3", "type": "ethernet_switch", "name": "Switch2", "ports": [{{"port_number": 0}}, {{"port_number": 1}}, {{"port_number": 2}}]}},
+    {{"node_id": "auto-4", "type": "vpcs", "name": "PC1", "ports": [{{"port_number": 0}}]}},
+    {{"node_id": "auto-5", "type": "vpcs", "name": "PC2", "ports": [{{"port_number": 0}}]}},
+    {{"node_id": "auto-6", "type": "vpcs", "name": "PC3", "ports": [{{"port_number": 0}}]}},
+    {{"node_id": "auto-7", "type": "vpcs", "name": "PC4", "ports": [{{"port_number": 0}}]}}
   ],
   "link_info": [
-    {{"link_id": "link-1", "node1_id": "auto-1", "node2_id": "auto-2", "node1_port": 0, "node2_port": 0}}
+    {{"link_id": "link-1", "node1_id": "auto-1", "node2_id": "auto-2", "node1_port": 0, "node2_port": 0}},
+    {{"link_id": "link-2", "node1_id": "auto-1", "node2_id": "auto-3", "node1_port": 1, "node2_port": 0}},
+    {{"link_id": "link-3", "node1_id": "auto-4", "node2_id": "auto-2", "node1_port": 0, "node2_port": 1}},
+    {{"link_id": "link-4", "node1_id": "auto-5", "node2_id": "auto-2", "node1_port": 0, "node2_port": 2}},
+    {{"link_id": "link-5", "node1_id": "auto-6", "node2_id": "auto-3", "node1_port": 0, "node2_port": 1}},
+    {{"link_id": "link-6", "node1_id": "auto-7", "node2_id": "auto-3", "node1_port": 0, "node2_port": 2}}
   ]
 }}"""
     content = call_llm(prompt)
     if not content: return {"output": None, "error": "LLM failed"}
     try:
         topo = json.loads(content[content.find('{'):content.rfind('}')+1])
-        print(f"Topologie: {len(topo.get('node_info',[]))} noeuds")
+        print(f"Topologie: {len(topo.get('node_info',[]))} noeuds, {len(topo.get('link_info',[]))} liens")
         return {"output": topo}
     except Exception as e:
         return {"output": None, "error": str(e)}
@@ -229,9 +377,12 @@ async def deploy_gns3(request: Request):
     if isinstance(topo, str): topo = json.loads(topo)
     print(f"\n[v7] Deploiement GNS3...")
     try:
-        projs = requests.get(f"{GNS3_URL}/projects").json()
-        pid = projs[0]["project_id"]
+        pid, _ = get_gns3_project()
+        if not pid: return {"output": None, "error": "No GNS3 project"}
+        
         created = {}
+        node_name_map = {}
+        
         for i, n in enumerate(topo.get("node_info", [])):
             angle = (2 * math.pi * i) / max(len(topo["node_info"]), 1)
             payload = {
@@ -246,10 +397,13 @@ async def deploy_gns3(request: Request):
                 }
             res = requests.post(f"{GNS3_URL}/projects/{pid}/nodes", json=payload).json()
             created[n["node_id"]] = res
+            node_name_map[n["name"]] = {"id": res["node_id"], "type": n["type"], "console": res.get("console")}
             requests.post(f"{GNS3_URL}/projects/{pid}/nodes/{res['node_id']}/start", json={})
             print(f"{n['name']} cree et demarre")
 
+        print("Attente 5s boot GNS3...")
         time.sleep(5)
+
         adapter_map = {}
         links_ok = 0
         for l in topo.get("link_info", []):
@@ -268,9 +422,20 @@ async def deploy_gns3(request: Request):
                     links_ok += 1
                     if n1.get("node_type") == "dynamips" or "R" in n1.get("name", ""):
                         adapter_map[n1['name']] = a1 + 1
-                    if n2.get("node_type") == "dynamips":
+                    if n2.get("node_type") == "dynamips" or "R" in n2.get("name", ""):
                         adapter_map[n2['name']] = a2 + 1
                     print(f"Lien: {n1['name']}(a={a1}) <-> {n2['name']}(a={a2})")
+
+        # Ajouter les liens manquants automatiquement
+        missing = add_missing_links(pid, created, node_name_map)
+        links_ok += missing
+
+        # Force config R1 si présent
+        if "R1" in node_name_map and node_name_map["R1"].get("console"):
+           
+            time.sleep(0)
+            force_configure_r1(pid, node_name_map["R1"]["id"], node_name_map["R1"]["console"])
+
         print(f"Deploye: {len(created)} noeuds, {links_ok} liens")
         return {"output": {
             "nodes_created": len(created),

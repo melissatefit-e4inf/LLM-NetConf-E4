@@ -1,3 +1,4 @@
+cat > ~/gns3-web-ui/src/app/components/chat/chat.component.ts << 'EOF'
 import { ChangeDetectionStrategy, Component, EventEmitter, Input, OnInit, Output, OnDestroy } from '@angular/core';
 import { ResizeEvent } from 'angular-resizable-element';
 import { LinksDataSource } from 'app/cartography/datasources/links-datasource';
@@ -19,7 +20,6 @@ import { ThemeService } from '../../services/theme.service';
 export class ChatComponent implements OnInit, OnDestroy {
   @Input() server: Server;
   @Input() project: Project;
-
   @Output() closeChat = new EventEmitter<boolean>();
 
   public style = {};
@@ -27,14 +27,12 @@ export class ChatComponent implements OnInit, OnDestroy {
   private subscriptions: Subscription[] = [];
 
   public inputValue: string = '';
-  public isLoading: boolean = false; // Variable ajoutée pour corriger l'erreur de compilation
+  public isLoading: boolean = false;
 
   nodes: Node[] = [];
   links: Link[] = [];
   messages = [];
 
-  isTopologyVisible: boolean = true;
-  isDraggingEnabled: boolean = false;
   isLightThemeEnabled: boolean = false;
 
   constructor(
@@ -45,17 +43,15 @@ export class ChatComponent implements OnInit, OnDestroy {
   ) {}
 
   ngOnInit(): void {
-    this.themeService.getActualTheme() === 'light'
-      ? (this.isLightThemeEnabled = true)
-      : (this.isLightThemeEnabled = false);
+    this.isLightThemeEnabled = this.themeService.getActualTheme() === 'light';
 
     this.subscriptions.push(
       this.nodeDataSource.changes.subscribe((nodes: Node[]) => {
-        this.nodes = nodes;
-        this.nodes.forEach((n) => {
-          if (n.console_host === '0.0.0.0' || n.console_host === '0:0:0:0:0:0:0:0' || n.console_host === '::') {
+        this.nodes = nodes.map(n => {
+          if (['0.0.0.0', '0:0:0:0:0:0:0:0', '::'].includes(n.console_host)) {
             n.console_host = this.server.host;
           }
+          return n;
         });
       })
     );
@@ -67,165 +63,100 @@ export class ChatComponent implements OnInit, OnDestroy {
     );
 
     this.revertPosition();
+
+    this.messages.push({
+      content: 'S-Witch LLM-NetConf pret ! Decrivez votre topologie ou tapez une commande reseau.',
+      class: 'chatBody__message_other',
+    });
   }
 
   revertPosition() {
-    this.style = { 
-      position: 'fixed',
-      bottom: '20px', 
-      right: '20px', 
-      width: '450px', 
-      height: '650px' 
-    };
+    this.style = { position: 'fixed', bottom: '20px', right: '20px', width: '450px', height: '650px' };
     this.bodyStyle = { height: '510px' };
-  }
-
-  toggleDragging(value: boolean) {
-    this.isDraggingEnabled = value;
-  }
-
-  dragWidget(event) {
-    let x: number = Number(event.movementX);
-    let y: number = Number(event.movementY);
-
-    let width: number = Number(this.style['width'].split('px')[0]);
-    let height: number = Number(this.style['height'].split('px')[0]);
-    let top: number = Number(this.style['top'].split('px')[0]) + y;
-
-    if (this.style['left']) {
-      let left: number = Number(this.style['left'].split('px')[0]) + x;
-      this.style = {
-        position: 'fixed',
-        left: `${left}px`,
-        top: `${top}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-      };
-
-      localStorage.setItem('chatLeftPosition', left.toString());
-      localStorage.setItem('chatTopPosition', top.toString());
-      localStorage.setItem('chatWidthOfWidget', width.toString());
-      localStorage.setItem('chatHeightOfWidget', height.toString());
-    } else {
-      let left: number = Number(this.style['right'].split('px')[0]) - x;
-      this.style = {
-        position: 'fixed',
-        right: `${left}px`,
-        top: `${top}px`,
-        width: `${width}px`,
-        height: `${height}px`,
-      };
-
-      localStorage.setItem('chatRightPosition', left.toString());
-      localStorage.setItem('chatTopPosition', top.toString());
-      localStorage.setItem('chatWidthOfWidget', width.toString());
-      localStorage.setItem('chatHeightOfWidget', height.toString());
-    }
-  }
-
-  validate(event: ResizeEvent): boolean {
-    if (
-      event.rectangle.width &&
-      event.rectangle.height &&
-      (event.rectangle.width < 290 || event.rectangle.height < 260)
-    ) {
-      return false;
-    }
-    return true;
   }
 
   onResizeEnd(event: ResizeEvent): void {
     this.style = {
       position: 'fixed',
       left: `${event.rectangle.left}px`,
-      right: `${event.rectangle.right}px`,
       top: `${event.rectangle.top}px`,
       width: `${event.rectangle.width}px`,
       height: `${event.rectangle.height}px`,
     };
-
-    this.bodyStyle = {
-      height: `${event.rectangle.height - 95}px`,
-    };
-  }
-
-  toggleTopologyVisibility(value: boolean) {
-    this.isTopologyVisible = value;
-    this.revertPosition();
-  }
-
-  ngOnDestroy() {
-    this.subscriptions.forEach((subscription: Subscription) => subscription.unsubscribe());
+    this.bodyStyle = { height: `${event.rectangle.height - 110}px` };
   }
 
   onKeyPress(event: KeyboardEvent) {
-    if (event.key === 'Enter') {
-      this.onClick();
-    }
+    if (event.key === 'Enter' && !this.isLoading) this.onClick();
   }
 
   onClick() {
-    if (this.inputValue && this.inputValue.trim() !== '' && !this.isLoading) {
+    if (!this.inputValue?.trim() || this.isLoading) return;
+
+    const userPrompt = this.inputValue;
+    this.messages.push({ content: userPrompt, class: 'chatBody__message_me' });
+    this.isLoading = true;
+    this.inputValue = '';
+
+    // Topologie avec ports consoles DYNAMIQUES
+    const topology = {
+      node_info: this.nodes.map(n => ({
+        name: n.name,
+        node_type: n.node_type,
+        console: n.console,
+        console_host: n.console_host,
+        ports: n.ports || []
+      })),
+      link_info: this.links.map(l => ({
+        link_id: l.link_id,
+        nodes: l.nodes || []
+      }))
+    };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+    fetch('http://localhost:8000/v4/invoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        input: {
+          chat_history: [],
+          topology: JSON.stringify(topology),
+          question: userPrompt
+        }
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      clearTimeout(timeoutId);
+      const output = data.output || [];
+      let response = 'Commandes generees :\n';
+      output.forEach((item: any) => {
+        if (item.device && item.command) {
+          response += `\n[${item.device}]\n${item.command}\n`;
+        }
+      });
       this.messages.push({
-        content: this.inputValue,
-        class: 'chatBody__message_me',
+        content: response,
+        class: 'chatBody__message_other',
       });
-
-      const prompt = this.inputValue;
-      this.inputValue = '';
-      this.isLoading = true;
-
-      const topology = {
-        node_info: this.nodes.map(n => ({
-          node_id: n.node_id,
-          name: n.name,
-          node_type: n.node_type,
-          console: n.console,
-          console_host: n.console_host,
-          ports: n.ports || []
-        })),
-        link_info: this.links.map(l => ({
-          link_id: l.link_id,
-          link_type: 'ethernet',
-          nodes: l.nodes || []
-        }))
-      };
-
-      fetch('http://localhost:8000/v4/invoke', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          input: {
-            chat_history: [],
-            topology: JSON.stringify(topology),
-            question: prompt
-          },
-          config: {},
-          kwargs: {}
-        })
-      })
-      .then(res => res.json())
-      .then(data => {
-        const output = data.output || [];
-        let response = 'Commandes generees :\n';
-        output.forEach((item: any) => {
-          if (item.device && item.command) {
-            response += `\n[${item.device}]\n${item.command}\n`;
-          }
-        });
-        this.messages.push({
-          content: response,
-          class: 'chatBody__message_other',
-        });
-        this.isLoading = false;
-      })
-      .catch(err => {
-        this.messages.push({
-          content: 'Erreur: ' + err.message,
-          class: 'chatBody__message_other',
-        });
-        this.isLoading = false;
+    })
+    .catch(err => {
+      clearTimeout(timeoutId);
+      this.messages.push({
+        content: `Erreur: ${err.message}`,
+        class: 'chatBody__message_other',
       });
-    }
+    })
+    .finally(() => {
+      this.isLoading = false;
+    });
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.forEach(s => s.unsubscribe());
   }
 }
+EOF
